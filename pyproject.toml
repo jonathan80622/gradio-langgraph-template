@@ -1,0 +1,16 @@
+[project]
+name = "gradio-langgraph-template"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "aiohttp>=3.11.12",
+    "gradio==5.16.2",
+    "langchain-core==0.3.37",
+    "langchain-openai==0.3.6",
+    "langgraph==0.2.74",
+    "pydantic==2.10.6",
+    "python-dotenv==1.0.1",
+    "trafilatura==2.0.0",
+]
