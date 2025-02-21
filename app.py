@@ -32,6 +32,11 @@ async def chat_fn(message, history, input_graph_state, uuid):
                     config=config,
                     stream_mode="messages",
                 ):
+            # download_website_text is the name of the function defined in graph.py
+            if hasattr(msg, "tool_calls") and msg.tool_calls and msg.tool_calls[0]['name'] == "download_website_text":
+                yield "Downloading website text..."
+            # if msg.additional_kwargs['tool_calls'] and msg.additional_kwargs['tool_calls'][0]== "download_website_text":
+            print("output: ", msg, metadata)
             # assistant_node is the name we defined in the langraph graph
             if metadata['langgraph_node'] == "assistant_node" and msg.content:
                 output += msg.content
