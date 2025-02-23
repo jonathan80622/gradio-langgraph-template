@@ -68,7 +68,6 @@ async def assistant_node(state: GraphProcessingState, config=None):
     )
     chain = prompt | assistant_model
     response = await chain.ainvoke({"messages": state.messages}, config=config)
-    logger.info(f"Message len: {len(state.messages)}")
 
     return {
         "messages": response
