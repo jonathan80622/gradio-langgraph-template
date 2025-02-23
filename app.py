@@ -93,7 +93,7 @@ async def chat_fn(message, history, input_graph_state, uuid):
         yield user_error_message, gr.skip(), False
 
 def clear():
-    return GraphProcessingState(), uuid4()
+    return dict(), uuid4()
 
 class FollowupQuestions(BaseModel):
     questions: list[str]
