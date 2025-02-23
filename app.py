@@ -2,6 +2,7 @@
 
 import logging
 import logging.config
+from typing import Any
 from uuid import uuid4, UUID
 import json
 
@@ -17,37 +18,46 @@ load_dotenv()
 from graph import graph, model # noqa
 
 FOLLOWUP_QUESTION_NUMBER = 3
+TRIM_MESSAGE_LENGTH = 16  # Includes tool messages
+USER_INPUT_MAX_LENGTH = 1000  # Characters
+
 with open('logging-config.json', 'r') as fh:
     config = json.load(fh)
 logging.config.dictConfig(config)
 logger = logging.getLogger(__name__)
 
-async def chat_fn(message: str, history: dict, input_graph_state: dict, uuid: UUID):
+async def chat_fn(user_input: str, history: dict, input_graph_state: dict, uuid: UUID):
     """
     Args:
-        message (str): The user's input message
+        user_input (str): The user's input message
         history (dict): The history of the conversation in gradio
         input_graph_state (dict): The current state of the graph. This includes tool call history
         uuid (UUID): The unique identifier for the current conversation. This can be used in conjunction with langgraph or for memory
     Yields:
-        str: The output message
+        str|Any: The output message
         dict|Any: The final state of the graph
-        bool: Whether to trigger follow up questions
+        bool|Any: Whether to trigger follow up questions
 
-        We do not use gradio history since we want the ToolMessage in the history
+        We do not use gradio history in the graph since we want the ToolMessage in the history
         ordered properly. GraphProcessingState.messages is used as history instead
     """
     try:
         if "messages" not in input_graph_state:
             input_graph_state["messages"] = []
-        input_graph_state["messages"].append(HumanMessage(message))
+        input_graph_state["messages"].append(
+            HumanMessage(user_input[:USER_INPUT_MAX_LENGTH])
+        )
+        input_graph_state["messages"] = input_graph_state["messages"][-TRIM_MESSAGE_LENGTH:]
         config = RunnableConfig()
         config["configurable"] = {}
         config["configurable"]["thread_id"] = uuid
 
-        output = ""
-        final_state = {}
-        waiting_output_seq = []
+        output: str = ""
+        final_state: dict | Any = {}
+        waiting_output_seq: list[str] = []
+
+        yield "Processing...", gr.skip(), False
+
         async for stream_mode, chunk in graph.astream(
                     input_graph_state,
                     config=config,
@@ -63,20 +73,21 @@ async def chat_fn(message: str, history: dict, input_graph_state: dict, uuid: UU
                         tool_name: str = msg_tool_call['name']
                         if tool_name == "download_website_text":
                             waiting_output_seq.append("Downloading website text...")
-                            yield "\n".join(waiting_output_seq), gr.skip(), False
+                            yield "\n".join(waiting_output_seq), gr.skip(), gr.skip()
                         elif tool_name == "tavily_search_results_json":
                             waiting_output_seq.append("Searching for relevant information...")
-                            yield "\n".join(waiting_output_seq), gr.skip(), False
+                            yield "\n".join(waiting_output_seq), gr.skip(), gr.skip()
                         elif tool_name:
                             waiting_output_seq.append(f"Running {tool_name}...")
-                            yield "\n".join(waiting_output_seq), gr.skip(), False
+                            yield "\n".join(waiting_output_seq), gr.skip(), gr.skip()
 
                 # print("output: ", msg, metadata)
                 # assistant_node is the name we defined in the langgraph graph
                 if metadata['langgraph_node'] == "assistant_node" and msg.content:
                     output += msg.content
-                    yield output, gr.skip(), False
+                    yield output, gr.skip(), gr.skip()
         # Trigger for asking follow up questions
+        # + store the graph state for next iteration
         yield output, dict(final_state), True
     except Exception:
         logger.exception("Exception occurred")
@@ -132,9 +143,7 @@ if __name__ == "__main__":
             lambda: bool()
         )
         chatbot = gr.Chatbot(
-            # avatar_images=(None, "assets/ai-avatar.png"),
             type="messages",
-            # placeholder=WELCOME_MESSAGE,/
             scale=1,
         )
         chatbot.clear(fn=clear, outputs=[gradio_graph_state, uuid_state])
@@ -170,5 +179,4 @@ if __name__ == "__main__":
     app.launch(
         server_name="127.0.0.1",
         server_port=7860,
-        # favicon_path="assets/favicon.ico"
     )

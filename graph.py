@@ -3,17 +3,15 @@ import os
 from typing import Annotated
 
 import aiohttp
-from langchain_core.messages import AnyMessage, HumanMessage
+from langchain_core.messages import AnyMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import ToolNode
-from langgraph.types import RunnableConfig
-from langgraph.graph import Graph, StateGraph, END, MessagesState, add_messages
-from langgraph.checkpoint.memory import MemorySaver
+from langgraph.graph import StateGraph, END, add_messages
 from langchain_community.tools import TavilySearchResults
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field
 from trafilatura import extract
 
 logger = logging.getLogger(__name__)
@@ -73,7 +71,7 @@ async def assistant_node(state: GraphProcessingState, config=None):
         "messages": response
     }
 
-def assistant_cond_edge(state: GraphProcessingState, config=None):
+def assistant_cond_edge(state: GraphProcessingState):
     if not state.messages[-1].content:
         return "tools"
     return END
