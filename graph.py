@@ -50,7 +50,7 @@ if os.environ.get("TAVILY_API_KEY"):
     )
     ASSISTANT_SYSTEM_PROMPT += "Use tavily_search_results_json if to search for relevant information online."
 else:
-    logger.info("TAVILY_API_KEY environment variable not found. Websearch disabled")
+    print("TAVILY_API_KEY environment variable not found. Websearch disabled")
 
 model = ChatOpenAI(model="gpt-4o-mini", tags=["assistant"])
 assistant_model = model.bind_tools(tools)
