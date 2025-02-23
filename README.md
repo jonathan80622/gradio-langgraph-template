@@ -4,7 +4,7 @@ A template for chatbot streaming from langgraph with gradio
 
 
 # Install
-
+    pip install uv
     uv sync
     cp .env.example .env
 
