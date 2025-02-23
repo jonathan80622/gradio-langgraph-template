@@ -2,7 +2,8 @@ A template for chatbot streaming from langgraph with gradio
 
 The template features a couple tool calls, streaming, and follow-up questions.
 
-![image](https://github.com/user-attachments/assets/a242eb0a-d2ec-4197-a753-2c027d021875)
+![image](https://github.com/user-attachments/assets/d98bd033-128e-427a-9d8e-a79eabeb338f)
+
 
 # Install
 
