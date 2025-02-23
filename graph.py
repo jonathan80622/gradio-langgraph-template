@@ -98,10 +98,7 @@ def define_workflow() -> CompiledStateGraph:
     workflow.set_entry_point("assistant_node")
     # workflow.set_finish_point("assistant_node")
 
-    # For production use cases we recommend installing [langgraph-checkpoint-postgres](https://pypi.org/project/langgraph-checkpoint-postgres/) and using `PostgresSaver` / `AsyncPostgresSaver`.
-    memory = MemorySaver()
-
-    return workflow.compile(memory)
+    return workflow.compile()
 
 graph = define_workflow()
 #

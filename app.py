@@ -11,11 +11,40 @@ from pydantic import BaseModel
 
 load_dotenv()
 
-from graph import GraphProcessingState, graph, model
+# There are tools set here dependent on environment variables
+from graph import GraphProcessingState, graph, model # noqa
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 FOLLOWUP_QUESTION_NUMBER = 3
+LOGGING_CONFIG = {
+    'version': 1,
+    "disable_existing_loggers": False,
+    'formatters': {
+        'verbose': {
+            'format': '%(asctime)s:%(name)s:%(levelname)s: %(message)s',
+            'datefmt': '%Y-%m-%d %H:%M:%S'
+        }
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'level': 'INFO',
+            'formatter': 'verbose'
+        },
+        'file': {
+            'class': 'logging.FileHandler',
+            'filename': 'app.log',
+            'level': 'DEBUG',
+            'formatter': 'verbose',
+        }
+    },
+    'root': {
+        'level': 'DEBUG',
+        'handlers': ['console', 'file']
+    }
+}
+
+logging.config.dictConfig(LOGGING_CONFIG)
+logger = logging.getLogger(__name__)
 
 async def chat_fn(message, history, input_graph_state, uuid):
     try:
@@ -26,24 +55,38 @@ async def chat_fn(message, history, input_graph_state, uuid):
         config["configurable"]["thread_id"] = uuid
 
         output = ""
-        async for msg, metadata in graph.astream(
-                    dict(input_graph_state),
+        final_state = {}
+        waiting_output_seq = []
+        async for stream_mode, chunk in graph.astream(
+                    input_graph_state,
                     config=config,
-                    stream_mode="messages",
+                    stream_mode=["values", "messages"],
                 ):
-            # download_website_text is the name of the function defined in graph.py
-            if hasattr(msg, "tool_calls") and msg.tool_calls and msg.tool_calls[0]['name'] == "download_website_text":
-                # yield {"role": "assistant", "content": "Downloading website text..."}
-                yield "Downloading website text...", gr.skip(), False
-            # if msg.additional_kwargs['tool_calls'] and msg.additional_kwargs['tool_calls'][0]== "download_website_text":
-            # print("output: ", msg, metadata)
-            # assistant_node is the name we defined in the langraph graph
-            if metadata['langgraph_node'] == "assistant_node" and msg.content:
-                output += msg.content
-                yield output, gr.skip(), False
+            if stream_mode == "values":
+                final_state = chunk
+            elif stream_mode == "messages":
+                msg, metadata = chunk
+                # download_website_text is the name of the function defined in graph.py
+                if hasattr(msg, "tool_calls") and msg.tool_calls:
+                    for msg_tool_call in msg.tool_calls:
+                        tool_name = msg_tool_call['name']
+                        if tool_name == "download_website_text":
+                            waiting_output_seq.append("Downloading website text...")
+                            yield "\n".join(waiting_output_seq), gr.skip(), False
+                        elif tool_name == "tavily_search_results_json":
+                            waiting_output_seq.append("Searching for relevant information...")
+                            yield "\n".join(waiting_output_seq), gr.skip(), False
+                        elif tool_name:
+                            waiting_output_seq.append(f"Running {tool_name}...")
+                            yield "\n".join(waiting_output_seq), gr.skip(), False
+
+                # print("output: ", msg, metadata)
+                # assistant_node is the name we defined in the langgraph graph
+                if metadata['langgraph_node'] == "assistant_node" and msg.content:
+                    output += msg.content
+                    yield output, gr.skip(), False
         # Trigger for asking follow up questions
-        final_state = graph.get_state(config).values
-        yield output, final_state, True
+        yield output, dict(final_state), True
     except Exception:
         logger.exception("Exception occurred")
         user_error_message = "There was an error processing your request. Please try again."
@@ -60,7 +103,7 @@ async def change_buttons(end_of_chat_response, messages):
         return [gr.skip() for _ in range(FOLLOWUP_QUESTION_NUMBER)]
     if messages[-1]["role"] == "assistant":
         follow_up_questions: FollowupQuestions = await model.with_structured_output(FollowupQuestions).ainvoke([
-            ("system", f"suggest {FOLLOWUP_QUESTION_NUMBER} followup questions"),
+            ("system", f"suggest {FOLLOWUP_QUESTION_NUMBER} followup questions for the user to ask the assistant. Refrain from asking personal questions."),
             *messages,
         ])
         if len(follow_up_questions.questions) != FOLLOWUP_QUESTION_NUMBER:
