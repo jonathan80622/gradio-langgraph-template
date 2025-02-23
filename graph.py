@@ -1,3 +1,5 @@
+import logging
+import os
 from typing import Annotated
 
 import aiohttp
@@ -9,8 +11,12 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import ToolNode
 from langgraph.types import RunnableConfig
 from langgraph.graph import Graph, StateGraph, END, MessagesState, add_messages
+from langgraph.checkpoint.memory import MemorySaver
+from langchain_community.tools import TavilySearchResults
 from pydantic import BaseModel, Field, ValidationError
 from trafilatura import extract
+
+logger = logging.getLogger(__name__)
 
 @tool
 async def download_website_text(url: str, config: RunnableConfig) -> str:
@@ -29,8 +35,22 @@ async def download_website_text(url: str, config: RunnableConfig) -> str:
 
 tools = [download_website_text]
 
+if os.environ.get("TAVILY_API_KEY"):
+    tools.append(
+        TavilySearchResults(
+            max_results=5,
+            search_depth="advanced",
+            include_answer=True,
+            include_raw_content=True,
+        )
+    )
+else:
+    logger.info("TAVILY_API_KEY environment variable not found. Websearch disabled")
+
+
 ASSISTANT_SYSTEM_PROMPT = "You are a helpful assistant."
-assistant_model = ChatOpenAI(model="gpt-4o-mini", tags=["assistant"]).bind_tools(tools)
+model = ChatOpenAI(model="gpt-4o-mini", tags=["assistant"])
+assistant_model = model.bind_tools(tools)
 
 class GraphProcessingState(BaseModel):
     user_input: str = Field(default_factory=str, description="The original user input")
@@ -78,7 +98,10 @@ def define_workflow() -> CompiledStateGraph:
     workflow.set_entry_point("assistant_node")
     # workflow.set_finish_point("assistant_node")
 
-    return workflow.compile()
+    # For production use cases we recommend installing [langgraph-checkpoint-postgres](https://pypi.org/project/langgraph-checkpoint-postgres/) and using `PostgresSaver` / `AsyncPostgresSaver`.
+    memory = MemorySaver()
+
+    return workflow.compile(memory)
 
 graph = define_workflow()
 #
