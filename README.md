@@ -8,10 +8,9 @@ The template features history for the LLM, a couple tool calls, streaming output
 # Install
 
     pip install uv
-    uv sync
-    cp .env.example .env
 
 Add your openai api key to `.env`
+Optionally add tavily key for websearch
 
 # Run
 
