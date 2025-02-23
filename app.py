@@ -7,6 +7,7 @@ import json
 
 import gradio as gr
 from dotenv import load_dotenv
+from langchain_core.messages import HumanMessage
 from langgraph.types import RunnableConfig
 from pydantic import BaseModel
 
@@ -32,10 +33,14 @@ async def chat_fn(message: str, history: dict, input_graph_state: dict, uuid: UU
         str: The output message
         dict|Any: The final state of the graph
         bool: Whether to trigger follow up questions
+
+        We do not use gradio history since we want the ToolMessage in the history
+        ordered properly. GraphProcessingState.messages is used as history instead
     """
     try:
-        input_graph_state["user_input"] = message
-        input_graph_state["history"] = history
+        if "messages" not in input_graph_state:
+            input_graph_state["messages"] = []
+        input_graph_state["messages"].append(HumanMessage(message))
         config = RunnableConfig()
         config["configurable"] = {}
         config["configurable"]["thread_id"] = uuid

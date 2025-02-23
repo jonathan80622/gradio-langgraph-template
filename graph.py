@@ -3,7 +3,7 @@ import os
 from typing import Annotated
 
 import aiohttp
-from langchain_core.messages import AnyMessage
+from langchain_core.messages import AnyMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
@@ -56,22 +56,23 @@ model = ChatOpenAI(model="gpt-4o-mini", tags=["assistant"])
 assistant_model = model.bind_tools(tools)
 
 class GraphProcessingState(BaseModel):
-    user_input: str = Field(default_factory=str, description="The original user input")
-    history: list[dict] = Field(default_factory=list, description="Chat history")  # type: ignore
+    # user_input: str = Field(default_factory=str, description="The original user input")
     messages: Annotated[list[AnyMessage], add_messages] = Field(default_factory=list)
 
 async def assistant_node(state: GraphProcessingState, config=None):
     prompt = ChatPromptTemplate.from_messages(
         [
             ("system", ASSISTANT_SYSTEM_PROMPT),
-            MessagesPlaceholder(variable_name="chat_history"),
-            ("user", "{user_input}"),
-            *state.messages,
+            MessagesPlaceholder(variable_name="messages"),
         ]
     )
     chain = prompt | assistant_model
-    response = await chain.ainvoke({"user_input": state.user_input, "chat_history": state.history}, config)
-    return {"messages": response}
+    response = await chain.ainvoke({"messages": state.messages}, config=config)
+    logger.info(f"Message len: {len(state.messages)}")
+
+    return {
+        "messages": response
+    }
 
 def assistant_cond_edge(state: GraphProcessingState, config=None):
     if not state.messages[-1].content:
