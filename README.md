@@ -15,3 +15,7 @@ Optionally add tavily key for websearch
 # Run
 
     uv run app.py
+
+# License
+
+This code is published under the MIT License
