@@ -163,10 +163,10 @@ if __name__ == "__main__":
             uuid4
         )
         gradio_graph_state = gr.State(
-            lambda: dict()
+            dict()
         )
         end_of_chat_response_state = gr.State(
-            lambda: bool()
+            bool()
         )
         chatbot = gr.Chatbot(
             type="messages",
