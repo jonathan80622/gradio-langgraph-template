@@ -132,6 +132,30 @@ footer {visibility: hidden}
 .followup-question-button {font-size: 12px }
 """
 
+# We set the ChatInterface textbox id to chat-textbox for this to work
+TRIGGER_CHATINTERFACE_BUTTON = """
+function triggerChatButtonClick() {
+
+  // Find the div with id "chat-textbox"
+  const chatTextbox = document.getElementById("chat-textbox");
+
+  if (!chatTextbox) {
+    console.error("Error: Could not find element with id 'chat-textbox'");
+    return;
+  }
+
+  // Find the button that is a descendant of the div
+  const button = chatTextbox.querySelector("button");
+
+  if (!button) {
+    console.error("Error: No button found inside the chat-textbox element");
+    return;
+  }
+
+  // Trigger the click event
+  button.click();
+
+}"""
 if __name__ == "__main__":
     logger.info("Starting the interface")
     with gr.Blocks(title="Langgraph Template", fill_height=True, css=CSS) as app:
@@ -155,6 +179,22 @@ if __name__ == "__main__":
                 btn = gr.Button(f"Button {i+1}", visible=False, elem_classes="followup-question-button")
                 followup_question_buttons.append(btn)
 
+        multimodal = False
+        textbox_component = (
+            gr.MultimodalTextbox if multimodal else gr.Textbox
+        )
+        with gr.Column():
+            textbox = textbox_component(
+                show_label=False,
+                label="Message",
+                placeholder="Type a message...",
+                scale=7,
+                autofocus=True,
+                submit_btn=True,
+                stop_btn=True,
+                elem_id="chat-textbox",
+                lines=1,
+            )
         chat_interface = gr.ChatInterface(
             chatbot=chatbot,
             fn=chat_fn,
@@ -167,14 +207,15 @@ if __name__ == "__main__":
                 end_of_chat_response_state
             ],
             type="messages",
-            multimodal=False,
+            multimodal=multimodal,
+            textbox=textbox,
         )
 
         def click_followup_button(btn):
             buttons = [gr.Button(visible=False) for _ in range(len(followup_question_buttons))]
             return btn, *buttons
         for btn in followup_question_buttons:
-            btn.click(fn=click_followup_button, inputs=[btn], outputs=[chat_interface.textbox, *followup_question_buttons])
+            btn.click(fn=click_followup_button, inputs=[btn], outputs=[chat_interface.textbox, *followup_question_buttons]).success(lambda: None, js=TRIGGER_CHATINTERFACE_BUTTON)
 
         chatbot.change(fn=populate_followup_questions, inputs=[end_of_chat_response_state, chatbot], outputs=followup_question_buttons, trigger_mode="once")
 
