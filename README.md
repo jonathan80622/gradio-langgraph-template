@@ -16,6 +16,14 @@ Optionally add tavily key for websearch
 
     uv run app.py
 
+# Chat with tabs
+
+`app_with_tabs.py` is a version with tabs for multiple chat windows and persistence
+
+You can run it with
+
+    uv run app_with_tabs.py
+
 # License
 
 This code is published under the MIT License
