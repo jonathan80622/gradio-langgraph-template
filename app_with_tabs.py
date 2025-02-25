@@ -181,7 +181,10 @@ def switch_tab(selected_uuid, tabs, gradio_graph, uuid, messages):
     selected_tab_state = tabs[selected_uuid]
     selected_graph = selected_tab_state["graph"]
     selected_messages = selected_tab_state["messages"]
-    return selected_graph, selected_uuid, selected_messages, tabs
+    suggestion_buttons = []
+    for _ in range(FOLLOWUP_QUESTION_NUMBER):
+        suggestion_buttons.append(gr.Button(visible=False))
+    return selected_graph, selected_uuid, selected_messages, tabs, *suggestion_buttons
 
 def delete_tab(current_chat_uuid, selected_uuid, sidebar_summaries, tabs):
     output_messages = gr.skip()
@@ -298,7 +301,7 @@ if __name__ == "__main__":
                             set_edit_tab_button = gr.Button("✎", scale=0, elem_classes=["tab-button-control"])
                             set_edit_tab_button.click(fn=lambda x: x, inputs=[button_uuid_state], outputs=[tab_edit_uuid_state])
                             chat_tab_button = gr.Button(summary, elem_id=f"chat-{chat_uuid}-button", elem_classes=elem_classes, scale=2)
-                            chat_tab_button.click(fn=switch_tab, inputs=[button_uuid_state, offloaded_tabs_data_storage, current_langgraph_state, current_uuid_state, chatbot], outputs=[current_langgraph_state, current_uuid_state, chat_interface.chatbot_value, offloaded_tabs_data_storage])
+                            chat_tab_button.click(fn=switch_tab, inputs=[button_uuid_state, offloaded_tabs_data_storage, current_langgraph_state, current_uuid_state, chatbot], outputs=[current_langgraph_state, current_uuid_state, chat_interface.chatbot_value, offloaded_tabs_data_storage, *followup_question_buttons])
                         else:
                             chat_tab_text = gr.Textbox(summary, elem_id=f"chat-{chat_uuid}-button", scale=2, interactive=True, show_label=False)
                             chat_tab_text.submit(fn=submit_edit_tab, inputs=[button_uuid_state, sidebar_names_state, chat_tab_text], outputs=[sidebar_names_state, tab_edit_uuid_state])
