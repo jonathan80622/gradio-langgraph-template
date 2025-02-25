@@ -21,6 +21,10 @@ FOLLOWUP_QUESTION_NUMBER = 3
 TRIM_MESSAGE_LENGTH = 16  # Includes tool messages
 USER_INPUT_MAX_LENGTH = 10000  # Characters
 
+# We need the same secret for data persistance
+# If you store sensitive data, you should store your secret in .env
+BROWSER_STORAGE_SECRET = "itsnosecret"
+
 with open('logging-config.json', 'r') as fh:
     config = json.load(fh)
 logging.config.dictConfig(config)
@@ -172,7 +176,7 @@ def switch_tab(selected_uuid, tabs, gradio_graph, uuid, messages):
     }
 
     if selected_uuid not in tabs:
-        logger.error(f"Could not find the selected tab in tabs_state {selected_uuid}")
+        logger.error(f"Could not find the selected tab in offloaded_tabs_data_storage {selected_uuid}")
         return gr.skip(), gr.skip(), gr.skip(), gr.skip()
     selected_tab_state = tabs[selected_uuid]
     selected_graph = selected_tab_state["graph"]
@@ -188,6 +192,10 @@ def delete_tab(current_chat_uuid, selected_uuid, sidebar_summaries, tabs):
     del sidebar_summaries[selected_uuid]
     return sidebar_summaries, tabs, output_messages
 
+def submit_edit_tab(selected_uuid, sidebar_summaries, text):
+    sidebar_summaries[selected_uuid] = text
+    return sidebar_summaries, ""
+
 CSS = """
 footer {visibility: hidden}
 .followup-question-button {font-size: 12px }
@@ -200,7 +208,7 @@ footer {visibility: hidden}
 }
 #new-chat-button { background-color: #0f0f11; color: white; }
 
-.clear-tab-button {
+.tab-button-control {
     min-width: 0;
     padding-left: 0;
     padding-right: 0;
@@ -234,28 +242,47 @@ function triggerChatButtonClick() {
 if __name__ == "__main__":
     logger.info("Starting the interface")
     with gr.Blocks(title="Langgraph Template", fill_height=True, css=CSS) as app:
-        uuid_state = gr.State(
-            uuid4
+        current_uuid_state = gr.BrowserState(
+            uuid4,
+            storage_key="current_uuid_state",
+            secret=BROWSER_STORAGE_SECRET,
         )
-        gradio_graph_state = gr.State(
-            dict()
+        current_langgraph_state = gr.BrowserState(
+            dict(),
+            storage_key="current_langgraph_state",
+            secret=BROWSER_STORAGE_SECRET,
         )
-        end_of_chat_response_state = gr.State(
-            bool()
+        end_of_assistant_response_state = gr.State(
+            bool(),
         )
-        sidebar_names_state = gr.State(
-            dict()
+        # [uuid] -> summary of chat
+        sidebar_names_state = gr.BrowserState(
+            dict(),
+            storage_key="sidebar_names_state",
+            secret=BROWSER_STORAGE_SECRET,
         )
-        tabs_state = gr.State(
-            dict()
+        # [uuid] -> {"graph": gradio_graph, "messages": messages}
+        offloaded_tabs_data_storage = gr.BrowserState(
+            dict(),
+            storage_key="offloaded_tabs_data_storage",
+            secret=BROWSER_STORAGE_SECRET,
+        )
+
+        chatbot_message_storage = gr.BrowserState(
+            [],
+            storage_key="chatbot_message_storage",
+            secret=BROWSER_STORAGE_SECRET,
         )
         chatbot = gr.Chatbot(
             type="messages",
             scale=1,
         )
+        tab_edit_uuid_state = gr.State(
+            str()
+        )
         with gr.Sidebar() as sidebar:
-            @gr.render(inputs=[end_of_chat_response_state, sidebar_names_state, uuid_state, chatbot])
-            def render_chats(end_of_chat_response, current_chats, active_uuid, messages):
+            @gr.render(inputs=[tab_edit_uuid_state, end_of_assistant_response_state, sidebar_names_state, current_uuid_state, chatbot])
+            def render_chats(tab_uuid_edit, end_of_chat_response, current_chats, active_uuid, messages):
                 if active_uuid not in current_chats:
                     gr.Button("Current Chat", elem_id=f"chat-{active_uuid}-button", elem_classes=["chat-tab", "active"])
                 for chat_uuid, summary in reversed(current_chats.items()):
@@ -265,14 +292,20 @@ if __name__ == "__main__":
                         elem_classes.append("active")
                     button_uuid_state = gr.State(chat_uuid)
                     with gr.Row():
-                        clear_tab_button = gr.Button("🗑", scale=0, elem_classes=["clear-tab-button"])
-                        clear_tab_button.click(fn=delete_tab, inputs=[uuid_state, button_uuid_state, sidebar_names_state, tabs_state], outputs=[sidebar_names_state, tabs_state, chat_interface.chatbot_value])
-                        chat_tab_button = gr.Button(summary, elem_id=f"chat-{chat_uuid}-button", elem_classes=elem_classes, scale=2)
-                    chat_tab_button.click(fn=switch_tab, inputs=[button_uuid_state, tabs_state, gradio_graph_state, uuid_state, chatbot], outputs=[gradio_graph_state, uuid_state, chat_interface.chatbot_value, tabs_state])
+                        clear_tab_button = gr.Button("🗑", scale=0, elem_classes=["tab-button-control"])
+                        clear_tab_button.click(fn=delete_tab, inputs=[current_uuid_state, button_uuid_state, sidebar_names_state, offloaded_tabs_data_storage], outputs=[sidebar_names_state, offloaded_tabs_data_storage, chat_interface.chatbot_value])
+                        if chat_uuid != tab_uuid_edit:
+                            set_edit_tab_button = gr.Button("✎", scale=0, elem_classes=["tab-button-control"])
+                            set_edit_tab_button.click(fn=lambda x: x, inputs=[button_uuid_state], outputs=[tab_edit_uuid_state])
+                            chat_tab_button = gr.Button(summary, elem_id=f"chat-{chat_uuid}-button", elem_classes=elem_classes, scale=2)
+                            chat_tab_button.click(fn=switch_tab, inputs=[button_uuid_state, offloaded_tabs_data_storage, current_langgraph_state, current_uuid_state, chatbot], outputs=[current_langgraph_state, current_uuid_state, chat_interface.chatbot_value, offloaded_tabs_data_storage])
+                        else:
+                            chat_tab_text = gr.Textbox(summary, elem_id=f"chat-{chat_uuid}-button", scale=2, interactive=True, show_label=False)
+                            chat_tab_text.submit(fn=submit_edit_tab, inputs=[button_uuid_state, sidebar_names_state, chat_tab_text], outputs=[sidebar_names_state, tab_edit_uuid_state])
                     # )
                 # return chat_tabs, current_chats
             new_chat_button = gr.Button("New Chat", elem_id="new-chat-button")
-        chatbot.clear(fn=clear, outputs=[gradio_graph_state, uuid_state])
+        chatbot.clear(fn=clear, outputs=[current_langgraph_state, current_uuid_state])
         with gr.Row():
             followup_question_buttons = []
             for i in range(FOLLOWUP_QUESTION_NUMBER):
@@ -300,19 +333,19 @@ if __name__ == "__main__":
             chatbot=chatbot,
             fn=chat_fn,
             additional_inputs=[
-                gradio_graph_state,
-                uuid_state,
+                current_langgraph_state,
+                current_uuid_state,
             ],
             additional_outputs=[
-                gradio_graph_state,
-                end_of_chat_response_state
+                current_langgraph_state,
+                end_of_assistant_response_state
             ],
             type="messages",
             multimodal=multimodal,
             textbox=textbox,
         )
 
-        new_chat_button.click(new_tab, inputs=[uuid_state, gradio_graph_state, chatbot, tabs_state], outputs=[uuid_state, gradio_graph_state, chat_interface.chatbot_value, tabs_state, *followup_question_buttons])
+        new_chat_button.click(new_tab, inputs=[current_uuid_state, current_langgraph_state, chatbot, offloaded_tabs_data_storage], outputs=[current_uuid_state, current_langgraph_state, chat_interface.chatbot_value, offloaded_tabs_data_storage, *followup_question_buttons])
 
         def click_followup_button(btn):
             buttons = [gr.Button(visible=False) for _ in range(len(followup_question_buttons))]
@@ -320,8 +353,13 @@ if __name__ == "__main__":
         for btn in followup_question_buttons:
             btn.click(fn=click_followup_button, inputs=[btn], outputs=[chat_interface.textbox, *followup_question_buttons]).success(lambda: None, js=TRIGGER_CHATINTERFACE_BUTTON)
 
-        chatbot.change(fn=populate_followup_questions, inputs=[end_of_chat_response_state, chatbot], outputs=[*followup_question_buttons, end_of_chat_response_state], trigger_mode="once")
-        chatbot.change(fn=summarize_chat, inputs=[end_of_chat_response_state, chatbot, sidebar_names_state, uuid_state], outputs=[sidebar_names_state], trigger_mode="once")
+        chatbot.change(fn=populate_followup_questions, inputs=[end_of_assistant_response_state, chatbot], outputs=[*followup_question_buttons, end_of_assistant_response_state], trigger_mode="once")
+        chatbot.change(fn=summarize_chat, inputs=[end_of_assistant_response_state, chatbot, sidebar_names_state, current_uuid_state], outputs=[sidebar_names_state], trigger_mode="once")
+        chatbot.change(fn=lambda x: x, inputs=[chatbot], outputs=[chatbot_message_storage], trigger_mode="once")
+
+        @app.load(inputs=[chatbot_message_storage], outputs=[chat_interface.chatbot_value])
+        def load_messages(messages):
+            return messages
 
     app.launch(
         server_name="127.0.0.1",
