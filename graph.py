@@ -22,18 +22,17 @@ Use download_website_text to download the text from a website.
 
 @tool
 async def download_website_text(url: str) -> str:
-    """Downloads the text from a website
-
-    args:
-        url: The URL of the website
-    """
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as response:
-            downloaded = await response.text()
-    result = extract(downloaded, include_formatting=True, include_links=True, output_format='json', with_metadata=True)
-    if result:
-        return result
-    return "No text found on the website"
+    """Downloads the text from a website"""
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                response.raise_for_status()
+                downloaded = await response.text()
+        result = extract(downloaded, include_formatting=True, include_links=True, output_format='json', with_metadata=True)
+        return result or "No text found on the website"
+    except Exception as e:
+        logger.error(f"Failed to download {url}: {str(e)}")
+        return f"Error retrieving website content: {str(e)}"
 
 tools = [download_website_text]
 

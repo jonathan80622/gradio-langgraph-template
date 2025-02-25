@@ -19,7 +19,7 @@ from graph import graph, model # noqa
 
 FOLLOWUP_QUESTION_NUMBER = 3
 TRIM_MESSAGE_LENGTH = 16  # Includes tool messages
-USER_INPUT_MAX_LENGTH = 1000  # Characters
+USER_INPUT_MAX_LENGTH = 10000  # Characters
 
 with open('logging-config.json', 'r') as fh:
     config = json.load(fh)
@@ -48,9 +48,11 @@ async def chat_fn(user_input: str, history: dict, input_graph_state: dict, uuid:
             HumanMessage(user_input[:USER_INPUT_MAX_LENGTH])
         )
         input_graph_state["messages"] = input_graph_state["messages"][-TRIM_MESSAGE_LENGTH:]
-        config = RunnableConfig()
-        config["configurable"] = {}
-        config["configurable"]["thread_id"] = uuid
+        config = RunnableConfig(
+            recursion_limit=10,
+            run_name="user_chat",
+            configurable={"thread_id": uuid}
+        )
 
         output: str = ""
         final_state: dict | Any = {}
@@ -67,10 +69,10 @@ async def chat_fn(user_input: str, history: dict, input_graph_state: dict, uuid:
                 final_state = chunk
             elif stream_mode == "messages":
                 msg, metadata = chunk
-                # download_website_text is the name of the function defined in graph.py
                 if hasattr(msg, "tool_calls") and msg.tool_calls:
                     for msg_tool_call in msg.tool_calls:
                         tool_name: str = msg_tool_call['name']
+                        # download_website_text is the name of the function defined in graph.py
                         if tool_name == "download_website_text":
                             waiting_output_seq.append("Downloading website text...")
                             yield "\n".join(waiting_output_seq), gr.skip(), gr.skip()
@@ -103,7 +105,7 @@ class FollowupQuestions(BaseModel):
 
 async def populate_followup_questions(end_of_chat_response, messages):
     """
-    This function gets called a lot due to the asyncronous nature of streaming
+    This function gets called a lot due to the asynchronous nature of streaming
 
     Only populate followup questions if streaming has completed and the message is coming from the assistant
     """
