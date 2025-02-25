@@ -24,6 +24,9 @@ You can run it with
 
     uv run app_with_tabs.py
 
+![image](https://github.com/user-attachments/assets/1b8222a1-f63b-470d-b5db-d2ead49054f0)
+
+
 # License
 
 This code is published under the MIT License
