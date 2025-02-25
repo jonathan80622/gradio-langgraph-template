@@ -71,7 +71,9 @@ async def assistant_node(state: GraphProcessingState, config=None):
     }
 
 def assistant_cond_edge(state: GraphProcessingState):
-    if not state.messages[-1].content:
+    last_message = state.messages[-1]
+    if hasattr(last_message, "tool_calls") and last_message.tool_calls:
+        logger.info(f"Tool call detected: {last_message.tool_calls}")
         return "tools"
     return END
 
