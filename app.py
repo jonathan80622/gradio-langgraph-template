@@ -75,22 +75,25 @@ async def chat_fn(user_input: str, history: dict, input_graph_state: dict, uuid:
                         # download_website_text is the name of the function defined in graph.py
                         if tool_name == "download_website_text":
                             waiting_output_seq.append("Downloading website text...")
-                            yield "\n".join(waiting_output_seq), gr.skip(), gr.skip()
+                            yield "\n".join(waiting_output_seq), gr.skip(), False
                         elif tool_name == "tavily_search_results_json":
                             waiting_output_seq.append("Searching for relevant information...")
-                            yield "\n".join(waiting_output_seq), gr.skip(), gr.skip()
+                            yield "\n".join(waiting_output_seq), gr.skip(), False
                         elif tool_name:
                             waiting_output_seq.append(f"Running {tool_name}...")
-                            yield "\n".join(waiting_output_seq), gr.skip(), gr.skip()
+                            yield "\n".join(waiting_output_seq), gr.skip(), False
 
                 # print("output: ", msg, metadata)
                 # assistant_node is the name we defined in the langgraph graph
                 if metadata['langgraph_node'] == "assistant_node" and msg.content:
                     output += msg.content
-                    yield output, gr.skip(), gr.skip()
+                    yield output, gr.skip(), False
         # Trigger for asking follow up questions
         # + store the graph state for next iteration
-        yield output, dict(final_state), True
+        yield output, dict(final_state), False
+        # There's a bug in gradio where the message output isn't being fully updated before
+        # The event is triggered, so try to workaround it by yielding the same output again
+        yield output, gr.skip(), True
     except Exception:
         logger.exception("Exception occurred")
         user_error_message = "There was an error processing your request. Please try again."
