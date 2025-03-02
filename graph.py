@@ -15,14 +15,12 @@ from pydantic import BaseModel, Field
 from trafilatura import extract
 
 logger = logging.getLogger(__name__)
-ASSISTANT_SYSTEM_PROMPT = """You are a helpful assistant.
-
-Use download_website_text to download the text from a website.
-"""
+ASSISTANT_SYSTEM_PROMPT_BASE = """"""
+search_enabled = bool(os.environ.get("TAVILY_API_KEY"))
 
 @tool
 async def download_website_text(url: str) -> str:
-    """Downloads the text from a website"""
+    """Download the text from a website"""
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
@@ -36,30 +34,43 @@ async def download_website_text(url: str) -> str:
 
 tools = [download_website_text]
 
-if os.environ.get("TAVILY_API_KEY"):
-    tools.append(
-        TavilySearchResults(
-            max_results=5,
-            search_depth="advanced",
-            include_answer=True,
-            include_raw_content=True,
-        )
-    )
-    ASSISTANT_SYSTEM_PROMPT += "Use tavily_search_results_json if to search for relevant information online."
+tavily_search_tool = TavilySearchResults(
+    max_results=5,
+    search_depth="advanced",
+    include_answer=True,
+    include_raw_content=True,
+)
+if search_enabled:
+    tools.append(tavily_search_tool)
 else:
     print("TAVILY_API_KEY environment variable not found. Websearch disabled")
 
-model = ChatOpenAI(model="gpt-4o-mini", tags=["assistant"])
-assistant_model = model.bind_tools(tools)
+weak_model = ChatOpenAI(model="gpt-4o-mini", tags=["assistant"])
+model = weak_model
+assistant_model = weak_model
 
 class GraphProcessingState(BaseModel):
     # user_input: str = Field(default_factory=str, description="The original user input")
     messages: Annotated[list[AnyMessage], add_messages] = Field(default_factory=list)
+    prompt: str = Field(default_factory=str, description="The prompt to be used for the model")
+    tools_enabled: dict = Field(default_factory=dict, description="The tools enabled for the assistant")
+    search_enabled: bool = Field(default=True, description="Whether to enable search tools")
 
 async def assistant_node(state: GraphProcessingState, config=None):
+    assistant_tools = []
+    if state.tools_enabled.get("download_website_text", True):
+        assistant_tools.append(download_website_text)
+    if search_enabled and state.tools_enabled.get("tavily_search_results_json", True):
+        assistant_tools.append(tavily_search_tool)
+    assistant_model = model.bind_tools(assistant_tools)
+    if state.prompt:
+        final_prompt = "\n".join([state.prompt, ASSISTANT_SYSTEM_PROMPT_BASE])
+    else:
+        final_prompt = ASSISTANT_SYSTEM_PROMPT_BASE
+
     prompt = ChatPromptTemplate.from_messages(
         [
-            ("system", ASSISTANT_SYSTEM_PROMPT),
+            ("system", final_prompt),
             MessagesPlaceholder(variable_name="messages"),
         ]
     )
