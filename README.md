@@ -1,8 +1,8 @@
 A template for chatbot streaming from langgraph with gradio
 
-The template features history for the LLM, a couple tool calls, streaming output, and follow-up question buttons.
+The template features history for the LLM, a couple tool calls, streaming output, tabs, persistence, and follow-up question buttons.
 
-![image](https://github.com/user-attachments/assets/d98bd033-128e-427a-9d8e-a79eabeb338f)
+![image](https://github.com/user-attachments/assets/1b8222a1-f63b-470d-b5db-d2ead49054f0)
 
 
 # Install
@@ -16,16 +16,15 @@ Optionally add tavily key for websearch
 
     uv run app.py
 
-# Chat with tabs
+# With session only
 
-`app_with_tabs.py` is a version with tabs for multiple chat windows and persistence
+`app_session_only.py` is a version with only session state
 
 You can run it with
 
-    uv run app_with_tabs.py
+    uv run app_session_only.py
 
-![image](https://github.com/user-attachments/assets/1b8222a1-f63b-470d-b5db-d2ead49054f0)
-
+![image](https://github.com/user-attachments/assets/d98bd033-128e-427a-9d8e-a79eabeb338f)
 
 # License
 
