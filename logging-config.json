@@ -17,7 +17,8 @@
             "class": "logging.FileHandler",
             "filename": "app.log",
             "level": "INFO",
-            "formatter": "verbose"
+            "formatter": "verbose",
+            "encoding": "utf-8"
         }
     },
     "root": {
