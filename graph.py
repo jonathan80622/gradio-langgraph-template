@@ -34,13 +34,13 @@ async def download_website_text(url: str) -> str:
 
 tools = [download_website_text]
 
-tavily_search_tool = TavilySearchResults(
-    max_results=5,
-    search_depth="advanced",
-    include_answer=True,
-    include_raw_content=True,
-)
 if search_enabled:
+    tavily_search_tool = TavilySearchResults(
+        max_results=5,
+        search_depth="advanced",
+        include_answer=True,
+        include_raw_content=True,
+    )
     tools.append(tavily_search_tool)
 else:
     print("TAVILY_API_KEY environment variable not found. Websearch disabled")
